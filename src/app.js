@@ -21,7 +21,10 @@ const { apiRateLimiter } = require('./middleware/rateLimit');
 const app = express();
 
 app.use(helmet());
-const allowedOrigins = (process.env.FRONTEND_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = [...new Set([
+    'https://recordflowfrontend.vercel.app',
+    ...(process.env.FRONTEND_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+])];
 app.use(cors({
     origin: allowedOrigins.length > 0 ? allowedOrigins : false,
     credentials: allowedOrigins.length > 0
