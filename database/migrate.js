@@ -14,19 +14,28 @@ const ensureIndex = async (connection, tableName, indexName, addIndexSql) => {
 
 const runMigration = async () => {
     let connection;
+    const tidbHost = process.env.TIDB_HOST;
+    const databaseName = process.env.DB_NAME || process.env.TIDB_DATABASE;
 
     try {
+        if (!databaseName) {
+            throw new Error('DB_NAME or TIDB_DATABASE must be configured');
+        }
+
         connection = await mysql.createConnection({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            port: process.env.DB_PORT || 3306,
+            host: process.env.DB_HOST || tidbHost || 'localhost',
+            user: process.env.DB_USER || process.env.TIDB_USER || 'root',
+            password: process.env.DB_PASSWORD || process.env.TIDB_PASSWORD || '',
+            port: Number(process.env.DB_PORT || process.env.TIDB_PORT || 3306),
+            ...(tidbHost || process.env.TIDB_ENABLE_SSL === 'true'
+                ? { ssl: { minVersion: 'TLSv1.2' } }
+                : {}),
             multipleStatements: true
         });
         console.log('Running migration...');
 
-        await connection.query(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME};`);
-        await connection.query(`USE ${process.env.DB_NAME};`);
+        await connection.query(`CREATE DATABASE IF NOT EXISTS \`${databaseName}\`;`);
+        await connection.query(`USE \`${databaseName}\`;`);
 
         const [auditTables] = await connection.query(
             `SHOW TABLES LIKE 'vendor_audit'`
