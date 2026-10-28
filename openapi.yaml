@@ -1,0 +1,696 @@
+openapi: 3.0.3
+info:
+  title: RecordFlow Business Management API
+  version: 1.0.0
+  description: Backend API for owner-managed vendors, transactions, balances, closing, reports, notifications, backups, and analytics.
+servers:
+  - url: http://localhost:5000
+security: []
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Vendors
+  - name: Transactions
+  - name: Transaction History
+  - name: Daily Closing
+  - name: Balances
+  - name: Reports
+  - name: Notifications
+  - name: Backups
+  - name: Analytics
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Check server liveness
+      responses:
+        '200': { description: Server is running }
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Public vendor registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      summary: Get the authenticated profile
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/owner-only:
+    get:
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      summary: Owner authorization check
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/vendor-only:
+    get:
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      summary: Vendor authorization check
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/vendors/me:
+    get:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Get the authenticated vendor profile
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/vendors:
+    post:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VendorRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: List vendors
+      parameters:
+        - { $ref: '#/components/parameters/status' }
+        - { $ref: '#/components/parameters/search' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/vendors/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Get a vendor
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Update vendor name and phone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VendorProfileRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Soft-deactivate a vendor
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/vendors/{id}/status:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    patch:
+      tags: [Vendors]
+      security: [{ bearerAuth: [] }]
+      summary: Activate or deactivate a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties: { status: { type: string, enum: [ACTIVE, INACTIVE] } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/transactions:
+    post:
+      tags: [Transactions]
+      security: [{ bearerAuth: [] }]
+      summary: Create a completed vendor transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    get:
+      tags: [Transactions]
+      security: [{ bearerAuth: [] }]
+      summary: List transactions with filters and pagination
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }, { $ref: '#/components/parameters/sort_order' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/transactions/my:
+    get:
+      tags: [Transactions]
+      security: [{ bearerAuth: [] }]
+      summary: List the authenticated vendor's transactions
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/transactions/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Transactions]
+      security: [{ bearerAuth: [] }]
+      summary: Get a transaction owned by the vendor or visible to the owner
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Transactions]
+      security: [{ bearerAuth: [] }]
+      summary: Edit an open-day transaction
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionUpdateRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/transactions/{id}/history:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Transaction History]
+      security: [{ bearerAuth: [] }]
+      summary: Get transaction edit history
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/transaction-history:
+    get:
+      tags: [Transaction History]
+      security: [{ bearerAuth: [] }]
+      summary: Search transaction history as owner
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/transaction-history/{id}/history:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Transaction History]
+      security: [{ bearerAuth: [] }]
+      summary: Get history by transaction ID
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/daily-closing:
+    post:
+      tags: [Daily Closing]
+      security: [{ bearerAuth: [] }]
+      summary: Close a non-future business day
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [closing_date]
+              properties: { closing_date: { type: string, format: date } }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [Daily Closing]
+      security: [{ bearerAuth: [] }]
+      summary: List all closings as owner
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/daily-closing/today:
+    get:
+      tags: [Daily Closing]
+      security: [{ bearerAuth: [] }]
+      summary: Get today's vendor closing status
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/daily-closing/my:
+    get:
+      tags: [Daily Closing]
+      security: [{ bearerAuth: [] }]
+      summary: List the vendor's closing history
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/daily-closing/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Daily Closing]
+      security: [{ bearerAuth: [] }]
+      summary: Get an owner or owning-vendor closing
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/balances:
+    get:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: List all vendor balances
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/balances/me:
+    get:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: Get own balance
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/balances/me/history:
+    get:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: Get own balance history
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/balances/{vendorId}:
+    parameters: [{ $ref: '#/components/parameters/vendorId' }]
+    get:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: Get one vendor balance
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/balances/{vendorId}/adjust:
+    parameters: [{ $ref: '#/components/parameters/vendorId' }]
+    post:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: Adjust a vendor balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [balance_type, amount, reason]
+              properties:
+                balance_type: { type: string, enum: [CASH, MOMO] }
+                amount: { type: number, multipleOf: 0.01 }
+                reason: { type: string, minLength: 5, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/balance-history:
+    get:
+      tags: [Balances]
+      security: [{ bearerAuth: [] }]
+      summary: List owner-visible balance history
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/reports/daily:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get a daily completed-transaction report
+      parameters: [{ $ref: '#/components/parameters/date' }, { $ref: '#/components/parameters/vendorId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/reports/weekly:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get a weekly report
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/reports/monthly:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get a monthly report
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer, minimum: 2000, maximum: 2100 } }
+        - { name: month, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 12 } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/reports/transaction-types:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get completed transactions grouped by type
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/reports/vendors:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get completed transaction performance by vendor
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }, { name: sort_by, in: query, schema: { type: string, enum: [transaction_count, total_amount] } }, { $ref: '#/components/parameters/sort_order' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/reports/daily-trend:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get completed daily transaction trend
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/reports/closing:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Get closing summary and details
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: List owner notifications
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }, { $ref: '#/components/parameters/sort_order' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/notifications/unread:
+    get:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: List unread owner notifications
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/notifications/unread/count:
+    get:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Count unread owner notifications
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/notifications/closing-pending:
+    get:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: List active vendors missing a closing
+      parameters: [{ $ref: '#/components/parameters/date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Mark all owner notifications read
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/notifications/{id}/read:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    patch:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Mark one owner notification read
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/backups:
+    post:
+      tags: [Backups]
+      security: [{ bearerAuth: [] }]
+      summary: Create a database backup
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    get:
+      tags: [Backups]
+      security: [{ bearerAuth: [] }]
+      summary: List backup metadata
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/backups/{id}/download:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      tags: [Backups]
+      security: [{ bearerAuth: [] }]
+      summary: Download a completed registered backup
+      responses:
+        '200': { description: SQL file download }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/backups/{id}/restore:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      tags: [Backups]
+      security: [{ bearerAuth: [] }]
+      summary: Restore a completed backup after a safety backup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation]
+              properties: { confirmation: { type: string, enum: [RESTORE_DATABASE] } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/analytics/dashboard:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Get today's dashboard aggregates
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/analytics/vendor-performance:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Get vendor activity/value aggregates
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }, { name: sort_by, in: query, schema: { type: string, enum: [transaction_count, transaction_amount] } }, { $ref: '#/components/parameters/sort_order' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/transaction-types:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Get transaction type distribution
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/transaction-trend:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Get daily transaction trend
+      parameters: [{ $ref: '#/components/parameters/required_start_date' }, { $ref: '#/components/parameters/required_end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/comparison:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Compare two completed-transaction periods
+      parameters:
+        - { name: current_start_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: current_end_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: previous_start_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: previous_end_date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/activity-summary:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Get today's business activity summary
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/large-transactions:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: List completed transactions at the configured large threshold
+      parameters: [{ $ref: '#/components/parameters/start_date' }, { $ref: '#/components/parameters/end_date' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /api/analytics/transaction-edits:
+    get:
+      tags: [Analytics]
+      security: [{ bearerAuth: [] }]
+      summary: Summarize transaction edit history
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    id: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    vendorId: { name: vendorId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    date: { name: date, in: query, schema: { type: string, format: date } }
+    start_date: { name: start_date, in: query, schema: { type: string, format: date } }
+    end_date: { name: end_date, in: query, schema: { type: string, format: date } }
+    required_start_date: { name: start_date, in: query, required: true, schema: { type: string, format: date } }
+    required_end_date: { name: end_date, in: query, required: true, schema: { type: string, format: date } }
+    sort_order: { name: sort_order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+    status: { name: status, in: query, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
+    search: { name: search, in: query, schema: { type: string, maxLength: 100 } }
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, phone, password, role]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, pattern: '^0\\d{9}$' }
+        password: { type: string, minLength: 7 }
+        role: { type: string, enum: [VENDOR] }
+    LoginRequest:
+      type: object
+      required: [phone, password]
+      properties:
+        phone: { type: string }
+        password: { type: string }
+    VendorRequest:
+      type: object
+      required: [name, phone, password]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, pattern: '^0\\d{9}$' }
+        password: { type: string, minLength: 8 }
+    VendorProfileRequest:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, pattern: '^0\\d{9}$' }
+    TransactionRequest:
+      type: object
+      required: [type, amount]
+      properties:
+        type: { type: string, enum: [DEPOSIT, WITHDRAWAL, TRANSFER, AIRTIME, DATA, BILL_PAYMENT, OTHER] }
+        amount: { type: number, exclusiveMinimum: 0, multipleOf: 0.01, maximum: 1000000000 }
+        customer_reference: { type: string, maxLength: 100, nullable: true }
+    TransactionUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        type: { type: string, enum: [DEPOSIT, WITHDRAWAL, TRANSFER, AIRTIME, DATA, BILL_PAYMENT, OTHER] }
+        amount: { type: number, exclusiveMinimum: 0, multipleOf: 0.01, maximum: 1000000000 }
+        customer_reference: { type: string, maxLength: 100, nullable: true }
+    ApiResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data: {}
+        request_id: { type: string }
+  responses:
+    Success:
+      description: Successful operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    BadRequest:
+      description: Invalid request or validation failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Unauthorized:
+      description: Missing authentication
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Conflict:
+      description: Duplicate or conflicting resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }

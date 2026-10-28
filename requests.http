@@ -1,0 +1,830 @@
+### RecordFlow Business Management - Authentication Tests
+### NOTE: Make sure your server is running on http://localhost:5000 
+### and your MySQL database is set up.
+
+@baseUrl = http://localhost:5000/api/auth
+@ownerPhone = 0800000001
+@vendorPhone = 0800000002
+@password = password123
+# You will paste the token you receive from login here to test the /me endpoints
+@token = YOUR_JWT_TOKEN_HERE
+
+### 1. Register an OWNER
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+    "name": "Owner Admin",
+    "phone": "{{ownerPhone}}",
+    "password": "{{password}}",
+    "role": "OWNER"
+}
+
+###
+
+### 2. Register a VENDOR
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+    "name": "Vendor Worker",
+    "phone": "{{vendorPhone}}",
+    "password": "{{password}}",
+    "role": "VENDOR"
+}
+
+###
+
+### 3. Reject duplicate phone numbers
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+    "name": "Another Vendor",
+    "phone": "{{vendorPhone}}",
+    "password": "{{password}}",
+    "role": "VENDOR"
+}
+
+###
+
+### 4. Login with the OWNER
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+    "phone": "{{ownerPhone}}",
+    "password": "{{password}}"
+}
+
+###
+
+### 5. Login with the VENDOR
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+    "phone": "{{vendorPhone}}",
+    "password": "{{password}}"
+}
+
+###
+
+### 6. Reject incorrect passwords
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+    "phone": "{{ownerPhone}}",
+    "password": "wrongpassword"
+}
+
+###
+
+### 7. Access /api/auth/me with a valid JWT
+# (Replace {{token}} above with the actual token from login, or paste it directly below)
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+
+###
+
+### 8. Reject /api/auth/me without a JWT
+GET {{baseUrl}}/me
+
+###
+
+### 9. Reject /api/auth/me with an invalid JWT
+GET {{baseUrl}}/me
+Authorization: Bearer invalid.token.string
+
+###
+
+### 10. Reject inactive users
+# (To test this, you must manually change the user's status to 'INACTIVE' in the MySQL database first)
+# UPDATE users SET status = 'INACTIVE' WHERE phone = '0800000002';
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+    "phone": "{{vendorPhone}}",
+    "password": "{{password}}"
+}
+
+### ==============================================
+### STEP 2 — VENDOR MANAGEMENT (OWNER only)
+### ==============================================
+### NOTE: Set @ownerToken below using the token received from login (request 4).
+@vendorBase = http://localhost:5000/api/vendors
+@ownerToken = PASTE_OWNER_JWT_HERE
+
+###
+
+### 11. Create a new vendor (OWNER only)
+POST {{vendorBase}}
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "name": "John Mensah",
+    "phone": "0240000000",
+    "password": "securepass1"
+}
+
+###
+
+### 12. Get all vendors (OWNER only)
+GET {{vendorBase}}
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 13. Get a single vendor by vendor ID (OWNER only)
+GET {{vendorBase}}/1
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 14. Update vendor name and phone (OWNER only)
+PUT {{vendorBase}}/1
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "name": "John Mensah Updated",
+    "phone": "0240000001"
+}
+
+###
+
+### 15. Activate a vendor (OWNER only)
+PATCH {{vendorBase}}/1/status
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "status": "ACTIVE"
+}
+
+###
+
+### ==============================================
+### STEP 3 — TRANSACTIONS (VENDOR & OWNER)
+### ==============================================
+@transactionBase = http://localhost:5000/api/transactions
+@vendorToken = PASTE_VENDOR_JWT_HERE
+
+###
+
+### 16. Create a transaction (VENDOR only)
+POST {{transactionBase}}
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "DEPOSIT",
+    "amount": "500.00",
+    "customer_reference": "REF001"
+}
+
+###
+
+### 17. View my transactions (VENDOR only)
+GET {{transactionBase}}/my
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 18. View all transactions (OWNER only)
+GET {{transactionBase}}
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### ==============================================
+### STEP 5 — DAILY CLOSING
+### ==============================================
+@closingBase = http://localhost:5000/api/daily-closing
+
+###
+
+### 19. Close business day (VENDOR only)
+POST {{closingBase}}
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "closing_date": "2026-09-01"
+}
+
+###
+
+### 20. Get today's closing status (VENDOR only)
+GET {{closingBase}}/today
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 21. Get my closing history (VENDOR only)
+GET {{closingBase}}/my?page=1&limit=20
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 22. Get all closings (OWNER only)
+GET {{closingBase}}
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 23. Get all closings filtered by vendor (OWNER only)
+GET {{closingBase}}?vendor_id=1&status=CLOSED
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 24. View a specific closing (VENDOR or OWNER)
+GET {{closingBase}}/1
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 25. Try to close an already closed day (should fail with 409)
+POST {{closingBase}}
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "closing_date": "2026-09-01"
+}
+
+###
+
+### ==============================================
+### STEP 6 — BALANCE MANAGEMENT
+### ==============================================
+@balancesBase = http://localhost:5000/api/balances
+@balanceHistoryBase = http://localhost:5000/api/balance-history
+
+###
+
+### 26. Get my balance (VENDOR only) 
+GET {{balancesBase}}/me
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 27. Get all vendor balances (OWNER only)
+GET {{balancesBase}}
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 28. Get specific vendor balance (OWNER only)
+GET {{balancesBase}}/2
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 29. Adjust balance (OWNER only) - Increase cash balance
+POST {{balancesBase}}/2/adjust
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "balance_type": "CASH",
+    "amount": 1000.00,
+    "reason": "Manual adjustment - compensation for returned items"
+}
+
+###
+
+### 30. Adjust balance - Decrease cash balance
+POST {{balancesBase}}/2/adjust
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "balance_type": "CASH",
+    "amount": -500.00,
+    "reason": "Manual adjustment - deduction for damaged goods"
+}
+
+###
+
+### 31. Adjust balance - Increase MoMo balance
+POST {{balancesBase}}/2/adjust
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "balance_type": "MOMO",
+    "amount": 2500.50,
+    "reason": "Top-up for mobile money operations"
+}
+
+###
+
+### 32. Try adjustment with insufficient reason (should fail with 400)
+POST {{balancesBase}}/2/adjust
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "balance_type": "CASH",
+    "amount": 100.00,
+    "reason": "Bad"
+}
+
+###
+
+### 33. Get my balance history (VENDOR only)
+GET {{balancesBase}}/me/history?page=1&limit=20
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 34. Get my balance history - filtered by balance type
+GET {{balancesBase}}/me/history?balance_type=CASH&page=1&limit=20
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 35. Get my balance history - filtered by date range
+GET {{balancesBase}}/me/history?start_date=2026-01-01&end_date=2026-12-31&page=1&limit=20
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 36. Get all balance history (OWNER only)
+GET {{balanceHistoryBase}}?page=1&limit=20
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 37. Get balance history - filtered by vendor
+GET {{balanceHistoryBase}}?vendor_id=2&page=1&limit=20
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 38. Get balance history - filtered by type and date
+GET {{balanceHistoryBase}}?balance_type=MOMO&start_date=2026-01-01&end_date=2026-12-31&page=1&limit=20
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 39. Create DEPOSIT transaction (should update CASH + and MOMO -)
+POST http://localhost:5000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "DEPOSIT",
+    "amount": 500.00,
+    "customer_reference": "DEP-12345"
+}
+
+###
+
+### 40. Create WITHDRAWAL transaction (should update CASH - and MOMO +)
+POST http://localhost:5000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "WITHDRAWAL",
+    "amount": 250.00,
+    "customer_reference": "WITH-12345"
+}
+
+###
+
+### 41. Create TRANSFER transaction (no balance effect)
+POST http://localhost:5000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "TRANSFER",
+    "amount": 100.00,
+    "customer_reference": "TRF-12345"
+}
+
+###
+
+### 42. Try DEPOSIT with insufficient MoMo balance (should fail)
+POST http://localhost:5000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "DEPOSIT",
+    "amount": 50000.00,
+    "customer_reference": "DEP-FAIL"
+}
+
+###
+
+### 43. Try WITHDRAWAL with insufficient cash balance (should fail)
+POST http://localhost:5000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "WITHDRAWAL",
+    "amount": 50000.00,
+    "customer_reference": "WITH-FAIL"
+}
+
+###
+
+### 44. Update transaction - change amount (should reverse and reapply balance effect)
+PUT http://localhost:5000/api/transactions/1
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "amount": 300.00
+}
+
+###
+
+### 45. Update transaction - change type from DEPOSIT to WITHDRAWAL
+PUT http://localhost:5000/api/transactions/1
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "WITHDRAWAL"
+}
+
+###
+
+### 26. Try to create a transaction after closing (should fail with 403)
+POST {{transactionBase}}
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "type": "DEPOSIT",
+    "amount": "100.00"
+}
+
+###
+
+### 27. Try to edit a transaction after closing (should fail with 403)
+PUT {{transactionBase}}/1
+Content-Type: application/json
+Authorization: Bearer {{vendorToken}}
+
+{
+    "amount": "600.00"
+}
+
+###
+
+### 16. Deactivate a vendor (OWNER only)
+PATCH {{vendorBase}}/1/status
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "status": "INACTIVE"
+}
+
+###
+
+### 17. Assign vendor to a branch (OWNER only)
+### branch_id will link to a real branches table in Step 3
+PATCH {{vendorBase}}/1/branch
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "branch_id": 1
+}
+
+###
+
+### 18. Remove branch assignment (unassign branch)
+PATCH {{vendorBase}}/1/branch
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+    "branch_id": null
+}
+
+###
+
+### 19. Delete a vendor (OWNER only)
+DELETE {{vendorBase}}/1
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 20. Reject vendor access when not OWNER (should return 403)
+### Login as a VENDOR first and paste that JWT below
+@vendorUserToken = PASTE_VENDOR_JWT_HERE
+POST {{vendorBase}}
+Content-Type: application/json
+Authorization: Bearer {{vendorUserToken}}
+
+{
+    "name": "Unauthorized Attempt",
+    "phone": "0241111111",
+    "password": "password123"
+}
+
+###
+
+### ============================================
+### STEP 7: Transaction Search, Filtering & Pagination
+### ============================================
+
+@transactionBase = http://localhost:5000/api/transactions
+
+### 46. VENDOR: Get my transactions (no filters, default pagination)
+GET {{transactionBase}}
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 47. VENDOR: Filter transactions by type=DEPOSIT
+GET {{transactionBase}}?type=DEPOSIT
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 48. VENDOR: Filter transactions by status=COMPLETED
+GET {{transactionBase}}?status=COMPLETED
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 49. VENDOR: Filter by exact date
+GET {{transactionBase}}?date=2026-01-15
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 50. VENDOR: Filter by date range (start_date to end_date)
+GET {{transactionBase}}?start_date=2026-01-01&end_date=2026-01-31
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 51. VENDOR: Filter by exact amount
+GET {{transactionBase}}?amount=500.00
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 52. VENDOR: Filter by minimum amount
+GET {{transactionBase}}?min_amount=100.00
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 53. VENDOR: Filter by maximum amount
+GET {{transactionBase}}?max_amount=1000.00
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 54. VENDOR: Filter by amount range (min_amount to max_amount)
+GET {{transactionBase}}?min_amount=250.00&max_amount=750.00
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 55. VENDOR: Filter by customer_reference (LIKE search)
+GET {{transactionBase}}?customer_reference=DEP
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 56. VENDOR: Filter by transaction_reference (LIKE search)
+GET {{transactionBase}}?transaction_reference=TXN
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 57. VENDOR: Combined filters (type + status + date range)
+GET {{transactionBase}}?type=DEPOSIT&status=COMPLETED&start_date=2026-01-01&end_date=2026-12-31
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 58. VENDOR: Sort by amount ascending
+GET {{transactionBase}}?sort_by=amount&sort_order=asc
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 59. VENDOR: Sort by amount descending
+GET {{transactionBase}}?sort_by=amount&sort_order=desc
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 60. VENDOR: Sort by transaction_date ascending
+GET {{transactionBase}}?sort_by=transaction_date&sort_order=asc
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 61. VENDOR: Sort by created_at descending (default)
+GET {{transactionBase}}?sort_by=created_at&sort_order=desc
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 62. VENDOR: Pagination - get page 1 with limit 10
+GET {{transactionBase}}?page=1&limit=10
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 63. VENDOR: Pagination - get page 2 with limit 10
+GET {{transactionBase}}?page=2&limit=10
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 64. VENDOR: Pagination - test limit cap at 100
+GET {{transactionBase}}?page=1&limit=500
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 65. VENDOR: Complex filter (all parameters combined)
+GET {{transactionBase}}?type=WITHDRAWAL&status=PENDING&start_date=2026-01-01&end_date=2026-12-31&min_amount=50&max_amount=2000&customer_reference=TEST&sort_by=amount&sort_order=desc&page=1&limit=20
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 66. VENDOR SECURITY TEST: Try to access another vendor's transactions via vendor_id parameter (should be ignored)
+GET {{transactionBase}}?vendor_id=2
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 67. OWNER: Get all transactions (no filters, default pagination)
+GET {{transactionBase}}
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 68. OWNER: Filter by vendor_id
+GET {{transactionBase}}?vendor_id=2
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 69. OWNER: Filter by vendor_name (LIKE search)
+GET {{transactionBase}}?vendor_name=Vendor
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 70. OWNER: Filter by type
+GET {{transactionBase}}?type=TRANSFER
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 71. OWNER: Filter by status
+GET {{transactionBase}}?status=FAILED
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 72. OWNER: Complex filter with vendor_id and type
+GET {{transactionBase}}?vendor_id=1&type=DEPOSIT&status=COMPLETED
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 73. OWNER: Complex filter with vendor_name and date range
+GET {{transactionBase}}?vendor_name=Worker&start_date=2026-01-01&end_date=2026-12-31
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 74. OWNER: Sort and pagination with filters
+GET {{transactionBase}}?type=DEPOSIT&sort_by=amount&sort_order=desc&page=1&limit=20
+Authorization: Bearer {{ownerToken}}
+
+###
+
+### 75. VALIDATION: Invalid transaction type (should return 400)
+GET {{transactionBase}}?type=INVALID_TYPE
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 76. VALIDATION: Invalid status (should return 400)
+GET {{transactionBase}}?status=INVALID_STATUS
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 77. VALIDATION: Invalid date format (should return 400)
+GET {{transactionBase}}?date=01-01-2026
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 78. VALIDATION: Invalid start_date format (should return 400)
+GET {{transactionBase}}?start_date=2026/01/01
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 79. VALIDATION: start_date > end_date (should return 400)
+GET {{transactionBase}}?start_date=2026-12-31&end_date=2026-01-01
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 80. VALIDATION: Negative amount (should return 400)
+GET {{transactionBase}}?amount=-100
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 81. VALIDATION: min_amount > max_amount (should return 400)
+GET {{transactionBase}}?min_amount=1000&max_amount=100
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 82. VALIDATION: Invalid sort_by column (should return 400)
+GET {{transactionBase}}?sort_by=invalid_column
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 83. VALIDATION: Invalid sort_order (should return 400)
+GET {{transactionBase}}?sort_by=amount&sort_order=invalid
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 84. VALIDATION: Invalid page number (should default to 1)
+GET {{transactionBase}}?page=0
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 85. VALIDATION: Invalid limit (should default to 20)
+GET {{transactionBase}}?limit=-10
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 86. AUTH: Missing authorization header (should return 401)
+GET {{transactionBase}}
+
+###
+
+### 87. AUTH: Invalid token (should return 401)
+GET {{transactionBase}}
+Authorization: Bearer INVALID_TOKEN
+
+###
+
+### 88. RBAC: Verify password not exposed in results
+GET {{transactionBase}}
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 89. RBAC: VENDOR must not see other vendor transactions even without filters
+GET {{transactionBase}}?vendor_name=AnyVendor
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 90. Closed day test: Search transactions from a closed day (should still be searchable)
+GET {{transactionBase}}?start_date=2026-01-01&end_date=2026-01-01
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 91. Empty results: Search for non-existent transaction reference
+GET {{transactionBase}}?transaction_reference=NONEXISTENT_12345
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 92. Get transaction details by ID
+GET {{transactionBase}}/1
+Authorization: Bearer {{vendorToken}}
+
+###
+
+### 93. Get transaction history by ID
+GET {{transactionBase}}/1/history
+Authorization: Bearer {{vendorToken}}
